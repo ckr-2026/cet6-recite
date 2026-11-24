@@ -1,0 +1,15 @@
+{
+  "name": "六级核心词 · 背诵卡",
+  "short_name": "六级背诵",
+  "description": "基于《英语六级核心词》PDF 词表的移动端背诵工具：发音、拼写、听音、间隔重复",
+  "start_url": "index.html",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f5f7fb",
+  "theme_color": "#2563eb",
+  "lang": "zh-CN",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

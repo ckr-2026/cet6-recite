@@ -157,7 +157,7 @@ var W = window.CET6_WORDS || [];
 var META = {};
 W.forEach(function(x){ META[x[0]] = {ph:x[2]||"", tr:x[3]||""}; });
 var KEY = "cet6_recite_v1";
-var DEF = {prog:{},custom:{},star:{},cfg:{goal:20,unit:0,accent:"en-GB",rate:0.85,daily:{date:"",n:0},streak:0,lastDay:""}};
+var DEF = {prog:{},custom:{},star:{},cfg:{goal:20,unit:0,accent:"en-GB",rate:0.85,shuffle:true,daily:{date:"",n:0},streak:0,lastDay:""}};
 var S = load();
 var view = document.getElementById("view");
 var toastEl = document.getElementById("toast");
@@ -216,12 +216,16 @@ function rateWord(w,r){
   else { p.r=(p.r||0)+1;p.i=STEPS[Math.min(p.r,STEPS.length-1)];p.d=Date.now()+p.i*24*3600*1000; }
   S.prog[w]=p; save();
 }
+function shuffleArr(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1)),t=a[i];a[i]=a[j];a[j]=t;}return a;}
 function buildQueue(){
   var now=Date.now(), all=activeWords();
   var due=all.filter(function(w){var p=S.prog[w];return p&&p.d<=now;}).sort(function(a,b){return S.prog[a].d-S.prog[b].d;});
   var need=Math.max(0,S.cfg.goal-todayN());
-  var fresh=all.filter(function(w){return !S.prog[w];}).slice(0,need);
+  var fresh=all.filter(function(w){return !S.prog[w];});
+  if(S.cfg.shuffle) fresh=shuffleArr(fresh);
+  fresh=fresh.slice(0,need);
   var q=due.concat(fresh);
+  if(S.cfg.shuffle) q=shuffleArr(q);
   if(!q.length) q=all.slice().sort(function(){return Math.random()-.5;}).slice(0,Math.min(S.cfg.goal,all.length));
   return q;
 }
@@ -274,6 +278,9 @@ function renderHome(){
     h+='<div class="notice">当前是本地预览：预览端口重启后会变，进度可能丢失。正式链接打开（或手机浏览器）进度可长期保存。</div>';
   h+='<div class="card hero"><div class="big">今天背 '+Math.min(S.cfg.goal-t,S.cfg.goal)+' 个词</div>';
   h+='<div class="row"><div class="k"><b>'+t+'</b><span>今日已学</span></div><div class="k"><b>'+due+'</b><span>待复习</span></div><div class="k"><b>'+S.cfg.streak+'</b><span>连续天数</span></div></div>';
+  var mastered=0, learning=0;
+  activeWords().forEach(function(w){var p=S.prog[w];if(!p)return;if((p.r||0)>=4&&!p.w)mastered++;else learning++;});
+  h+='<div class="pline" style="margin-top:10px"><span>记忆状况</span><span>掌握 '+mastered+' · 巩固中 '+learning+' · 未学 '+(total-learned)+'</span></div><div class="hbar"><i style="width:'+(total?Math.round(mastered/total*100):0)+'%;background:var(--ok)"></i></div>';
   h+='<div class="pline"><span>整体进度</span><span>'+pct+'%</span></div><div class="hbar"><i style="width:'+pct+'%"></i></div></div>';
   h+='<h2>选择范围</h2>';
   var chips='<div class="chips"><button class="chip '+(S.cfg.unit===0?"on":"")+'" data-unit="0">全部 '+W.length+'</button>';
@@ -330,7 +337,12 @@ function renderListen(){
   h+='<div class="btnrow"><button class="btn ghost" data-act="skipspell">跳过</button></div>';
   view.innerHTML=h;
 }
-var listFilter="all", listQuery="", detailWord="";
+var listFilter="all", listQuery="", listSort="def", detailWord="";
+function weakness(w){
+  var p=S.prog[w];
+  if(!p) return -100;               // 未学的排最后
+  return (p.w||0)*10 - (p.r||0)*3;  // 错得多、复习等级低 = 最生疏
+}
 function renderList(){
   var q=listQuery.trim().toLowerCase();
   var arr=activeWords().filter(function(w){
@@ -340,13 +352,21 @@ function renderList(){
     if(q && w.toLowerCase().indexOf(q)<0) return false;
     return true;
   });
+  if(listSort==="err") arr.sort(function(a,b){return ((S.prog[b]&&S.prog[b].w)||0)-((S.prog[a]&&S.prog[a].w)||0);});
+  if(listSort==="weak") arr.sort(function(a,b){return weakness(b)-weakness(a);});
   var h='<div class="searchbox"><input type="text" id="listSearch" placeholder="搜索单词…" value="'+esc(listQuery)+'" autocomplete="off"><button class="btn ghost sm" data-act="clearsearch">清除</button></div>';
-  h+='<div class="chips" style="margin-bottom:12px">'
+  h+='<div class="chips" style="margin-bottom:8px">'
     +[["all","全部"],["new","未学"],["wrong","错词"],["star","收藏"]].map(function(x){return '<button class="chip '+(listFilter===x[0]?"on":"")+'" data-filter="'+x[0]+'">'+x[1]+'</button>';}).join("")+'</div>';
+  h+='<div class="chips" style="margin-bottom:12px">'
+    +[["def","默认顺序"],["err","错得多"],["weak","最生疏"]].map(function(x){return '<button class="chip '+(listSort===x[0]?"on":"")+'" data-sort="'+x[0]+'">'+x[1]+'</button>';}).join("")+'</div>';
   h+='<div class="progline"><span>共 '+arr.length+' 个词</span></div>';
   var show=arr.slice(0,300);
   h+='<div class="list">'+show.map(function(w){
-    var p=S.prog[w], st=p?((p.w||0)>0?'<span class="st bad">错 '+(p.w||0)+'</span>':'<span class="st learn">已学</span>'):'<span class="st new">未学</span>';
+    var p=S.prog[w], st;
+    if(!p) st='<span class="st new">未学</span>';
+    else if((p.w||0)>0) st='<span class="st bad">错 '+(p.w||0)+'</span>';
+    else if((p.r||0)>=4) st='<span class="st learn">已掌握</span>';
+    else st='<span class="st learn">学习中</span>';
     var line=((META[w]||{}).tr||"").split("\n")[0];
     return '<div class="li" data-detail="'+esc(w)+'"><div class="wl"><span class="w">'+esc(w)+'</span>'+(line?'<span class="d">'+esc(line)+'</span>':'')+'</div>'+st+'<span class="u">U'+unitOf(w)+'</span><button class="mini" data-speak="'+esc(w)+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg></button></div>';
   }).join("")+'</div>';
@@ -363,6 +383,7 @@ function openSettings(){
   h+='<div class="field"><label>每日新词目标</label><div class="seg">'+[10,20,30,50].map(function(n){return '<button data-goal="'+n+'" class="'+(S.cfg.goal===n?"on":"")+'">'+n+' 个</button>';}).join("")+'</div></div>';
   h+='<div class="field"><label>发音口音</label><div class="seg"><button data-accent="en-GB" class="'+(S.cfg.accent==="en-GB"?"on":"")+'">英音</button><button data-accent="en-US" class="'+(S.cfg.accent==="en-US"?"on":"")+'">美音</button></div></div>';
   h+='<div class="field"><label>语速</label><div class="seg">'+[0.7,0.85,1].map(function(n){return '<button data-rate="'+n+'" class="'+(S.cfg.rate===n?"on":"")+'">'+(n===0.7?"慢":n===1?"快":"正常")+'</button>';}).join("")+'</div></div>';
+  h+='<div class="field"><label>学习顺序</label><div class="seg"><button data-shuffle="0" class="'+(!S.cfg.shuffle?"on":"")+'">按顺序</button><button data-shuffle="1" class="'+(S.cfg.shuffle?"on":"")+'">乱序</button></div></div>';
   h+='<div class="field"><label>进度备份</label><div class="btnrow" style="margin-top:0"><button class="btn ghost" data-act="export">导出备份文件</button><button class="btn ghost" data-act="import">从文件导入</button></div></div>';
   h+='<button class="btn danger" data-act="reset">清空全部进度</button>';
   openSheet(h);
@@ -383,7 +404,7 @@ function openDetail(w){
 
 /* ---------- 事件 ---------- */
 document.addEventListener("click",function(ev){
-  var t=ev.target.closest("[data-tab],[data-unit],[data-act],[data-speak],[data-rate],[data-opt],[data-goal],[data-accent],[data-filter],[data-detail]");
+  var t=ev.target.closest("[data-tab],[data-unit],[data-act],[data-speak],[data-rate],[data-opt],[data-goal],[data-accent],[data-filter],[data-detail],[data-shuffle],[data-sort]");
   if(!t)return;
   if(t.hasAttribute("data-speak")){ ev.stopPropagation(); speak(t.getAttribute("data-speak")); return; }
   if(t.hasAttribute("data-tab")){ tab=t.getAttribute("data-tab"); if(tab==="card"||tab==="spell"||tab==="listen"){ if(!session.cur||session.mode!==tab) startSession(tab); else render(); } else render(); return; }
@@ -453,6 +474,8 @@ document.addEventListener("click",function(ev){
   if(act==="nextlisten"){ session.done++;nextQuestion();return; }
   if(act==="clearsearch"){ listQuery="";render();return; }
   if(t.hasAttribute("data-filter")){ listFilter=t.getAttribute("data-filter");render();return; }
+  if(t.hasAttribute("data-sort")){ listSort=t.getAttribute("data-sort");render();return; }
+  if(t.hasAttribute("data-shuffle")){ S.cfg.shuffle=t.getAttribute("data-shuffle")==="1";save();openSettings();render();return; }
   if(t.hasAttribute("data-detail")){ openDetail(t.getAttribute("data-detail"));return; }
   if(act==="detail"){ openDetail(currentWord());return; }
   if(act==="closesheet"){ closeSheet();return; }

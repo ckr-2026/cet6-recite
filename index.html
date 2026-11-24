@@ -89,6 +89,15 @@ textarea{min-height:76px;resize:vertical}
   font-size:18px;font-weight:600;cursor:pointer;text-align:left;padding:12px 16px}
 .opt.right{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
 .opt.wrong{background:#fdecea;border-color:var(--danger);color:var(--danger)}
+.opt .abcd{display:inline-block;width:26px;height:26px;line-height:26px;text-align:center;border-radius:8px;background:var(--surface2);color:var(--muted);font-size:13px;font-weight:700;margin-right:10px;vertical-align:middle}
+.opt.right .abcd{background:var(--ok);color:#fff}.opt.wrong .abcd{background:var(--danger);color:#fff}
+.opt.ans .abcd{font-size:12px}
+.exbox{background:var(--surface2);border-radius:14px;padding:14px;margin:12px 0;font-size:15px;line-height:1.65}
+.exbox .lbl{font-size:11px;color:var(--muted);margin-bottom:6px}
+.exbox .en{font-size:15px;line-height:1.6}
+.exbox .en b{color:var(--primary);background:var(--primary-soft);border-radius:4px;padding:0 3px}
+.exbox .speakbtn{margin-top:10px}
+.exnone{color:var(--muted);font-size:13px}
 .feedback{text-align:center;font-size:14px;font-weight:600;margin-top:12px;min-height:22px}
 .searchbox{display:flex;gap:8px;margin-bottom:10px}
 .searchbox .btn{flex:0 0 auto;white-space:nowrap}
@@ -150,6 +159,7 @@ textarea{min-height:76px;resize:vertical}
 <div id="toast"></div>
 
 <script src="words.js"></script>
+<script src="sentences.js"></script>
 <script>
 (function(){
 "use strict";
@@ -217,6 +227,40 @@ function rateWord(w,r){
   S.prog[w]=p; save();
 }
 function shuffleArr(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1)),t=a[i];a[i]=a[j];a[j]=t;}return a;}
+/* ---------- 选择题：从同词表随机抽干扰项 ---------- */
+function shortTr(w){
+  var raw=((META[w]||{}).tr||"").split("\n")[0].trim();
+  var t=raw.replace(/^[^\u4e00-\u9fa5]+/,"").replace(/[;；].*$/,"").trim();
+  if(!t) t=raw;
+  return t.length>28 ? t.slice(0,27)+"…" : t;
+}
+function makeChoice(w){
+  var ans=shortTr(w);
+  if(!ans) return null;
+  var pool=[], seen={}; seen[ans]=1;
+  var cand=activeWords().filter(function(x){return x!==w && shortTr(x) && shortTr(x)!==ans;});
+  shuffleArr(cand);
+  for(var i=0;i<cand.length&&pool.length<3;i++){
+    var t=shortTr(cand[i]);
+    if(seen[t])continue;
+    seen[t]=1;pool.push(t);
+  }
+  if(pool.length<3) return null;
+  var opts=pool.concat([ans]); shuffleArr(opts);
+  return {ans:ans,opts:opts};
+}
+/* ---------- 例句：目标词高亮 ---------- */
+function sentHTML(w){
+  var s=(window.CET6_SENT||{})[w];
+  if(!s) return '';
+  var forms=[w,w+"s",w+"d",w+"ed",w+"ing"];
+  if(/e$/.test(w)) forms.push(w.slice(0,-1)+"ing");
+  if(/y$/.test(w)) forms.push(w.slice(0,-1)+"ies");
+  var re=new RegExp("\\b("+forms.map(function(f){return f.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");}).join("|")+")\\b","gi");
+  var out=esc(s).replace(re,function(m){return '<b>'+m+'</b>';});
+  return '<div class="exbox"><div class="lbl">例句 · 句子记忆</div><div class="en">'+out+'</div>'
+    +'<div class="speakrow" style="margin-top:8px">'+spkBtn(s,"朗读整句")+'</div></div>';
+}
 function buildQueue(){
   var now=Date.now(), all=activeWords();
   var due=all.filter(function(w){var p=S.prog[w];return p&&p.d<=now;}).sort(function(a,b){return S.prog[a].d-S.prog[b].d;});
@@ -230,11 +274,11 @@ function buildQueue(){
   return q;
 }
 function startSession(mode){
-  session.mode=mode; session.queue=buildQueue(); session.done=0; session.total=session.queue.length; session.cur=null;
+  session.mode=mode; session.queue=buildQueue(); session.done=0; session.total=session.queue.length; session.cur=null; session._picked=0;
   tab=mode; nextQuestion(); render();
 }
 function nextQuestion(){
-  session._hint=0;
+  session._hint=0; session._picked=0;
   if(!session.queue.length){ session.cur=null; render(); return; }
   session.cur=session.queue.shift();
   if(session.mode==="listen"){ session.cur=makeListen(session.cur); }
@@ -293,12 +337,19 @@ function renderHome(){
 function renderCard(){
   if(!session.cur){ return renderDone("卡片"); }
   var w=session.cur, p=S.prog[w], m=META[w]||{ph:"",tr:""};
+  session.choice=makeChoice(w);
   var h='<div class="progline"><span>卡片 '+(session.done+1)+' / '+session.total+'</span><span>Unit '+unitOf(w)+' · '+(p?("已学 "+(p.s||0)+" 次"):"新词")+'</span></div>';
-  h+='<div class="card" style="padding:26px 18px"><div class="wordbig" id="cardWord">'+esc(w)+'</div>'+(m.ph?'<div class="ipa">/'+esc(m.ph)+'/</div>':'')+'<div class="wordhint">看单词，回忆它的中文意思</div>';
+  h+='<div class="card" style="padding:26px 18px"><div class="wordbig" id="cardWord">'+esc(w)+'</div>'+(m.ph?'<div class="ipa">/'+esc(m.ph)+'/</div>':'')+'<div class="wordhint">选出它的中文意思</div>';
   h+='<div class="speakrow">'+spkBtn(w,"播放读音")+'</div>';
-  h+='<div id="cardAnswer"></div>';
-  h+='<div id="cardRate" style="display:none"><div class="rate3"><button class="r0" data-rate="0">不认识</button><button class="r1" data-rate="1">模糊</button><button class="r2" data-rate="2">认识</button></div></div>';
-  h+='<button class="btn soft" id="btnShow" data-act="showanswer">显示释义</button></div>';
+  if(session.choice){
+    h+='<div class="opts" id="cardOpts">'+session.choice.opts.map(function(o,i){
+      return '<button class="opt" data-choice="'+esc(o)+'"><span class="abcd">'+'ABCD'[i]+'</span>'+esc(o)+'</button>';
+    }).join("")+'</div>';
+  }else{
+    h+='<div id="cardAnswer"></div><div id="cardRate" style="display:none"><div class="rate3"><button class="r0" data-rate="0">不认识</button><button class="r1" data-rate="1">模糊</button><button class="r2" data-rate="2">认识</button></div></div>';
+    h+='<button class="btn soft" id="btnShow" data-act="showanswer">显示释义</button>';
+  }
+  h+='<div id="cardFb"></div></div>';
   h+='<div class="btnrow"><button class="btn ghost" data-act="detail">详情</button><button class="btn ghost" data-act="skip">跳过</button></div>';
   view.innerHTML=h;
 }
@@ -404,7 +455,7 @@ function openDetail(w){
 
 /* ---------- 事件 ---------- */
 document.addEventListener("click",function(ev){
-  var t=ev.target.closest("[data-tab],[data-unit],[data-act],[data-speak],[data-rate],[data-opt],[data-goal],[data-accent],[data-filter],[data-detail],[data-shuffle],[data-sort]");
+  var t=ev.target.closest("[data-tab],[data-unit],[data-act],[data-speak],[data-rate],[data-opt],[data-choice],[data-goal],[data-accent],[data-filter],[data-detail],[data-shuffle],[data-sort]");
   if(!t)return;
   if(t.hasAttribute("data-speak")){ ev.stopPropagation(); speak(t.getAttribute("data-speak")); return; }
   if(t.hasAttribute("data-tab")){ tab=t.getAttribute("data-tab"); if(tab==="card"||tab==="spell"||tab==="listen"){ if(!session.cur||session.mode!==tab) startSession(tab); else render(); } else render(); return; }
@@ -414,6 +465,28 @@ document.addEventListener("click",function(ev){
   if(act==="again"){ startSession(session.mode);return; }
   if(act==="gohome"){ tab="home";render();return; }
   if(act==="skip"||act==="skipspell"){ session.done++;nextQuestion();return; }
+  if(t.hasAttribute("data-choice")){
+    var c=session.choice, pick=t.getAttribute("data-choice");
+    if(!c || session._picked) return;
+    session._picked=1;
+    var all=document.querySelectorAll("#cardOpts .opt");
+    for(var k=0;k<all.length;k++){ all[k].disabled=true; if(all[k].getAttribute("data-choice")===c.ans) all[k].classList.add("right"); }
+    var ok=pick===c.ans, w=session.cur, m=META[w]||{tr:""};
+    if(!ok) t.classList.add("wrong");
+    rateWord(w, ok?2:0); bumpToday(); session.done++;
+    var fb=document.getElementById("cardFb");
+    var html='<div class="feedback" style="color:var('+(ok?"ok":"danger")+')">'+(ok?"✓ 答对了":"✗ 记错了")+'</div>';
+    html+='<div class="answer"><div class="lbl">中文释义</div><div class="val tr">'+esc(m.tr||c.ans)+'</div></div>';
+    var ex=sentHTML(w);
+    html+= ex ? ex : '<div class="exbox"><div class="lbl">例句 · 句子记忆</div><div class="exnone">该词暂无内置例句，可在「详情」里写一条自己的句子</div></div>';
+    var cu=(S.custom[w]||{}).sentence;
+    if(cu) html+='<div class="answer"><div class="lbl">我的例句</div><div class="val">'+esc(cu)+'</div></div>';
+    html+='<button class="btn primary" data-act="nextcard" style="margin-top:6px">下一个 →</button>';
+    fb.innerHTML=html;
+    fb.scrollIntoView({behavior:"smooth",block:"nearest"});
+    return;
+  }
+  if(act==="nextcard"){ session._picked=0;nextQuestion();return; }
   if(act==="showanswer"){
     var w=session.cur, c=S.custom[w]||{}, m=META[w]||{tr:""};
     var html = m.tr

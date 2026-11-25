@@ -72,10 +72,6 @@ h2{font-size:14px;margin:20px 0 10px;font-weight:650;color:var(--muted);letter-s
 .answer .lbl{font-size:11px;color:var(--muted);margin-bottom:4px}
 .answer .val{font-size:15px}
 .tr{white-space:pre-line}
-.rate3{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:6px}
-.rate3 button{border:0;border-radius:14px;min-height:56px;font-size:14px;font-weight:650;cursor:pointer;color:#fff}
-.rate3 .r0{background:var(--danger)}.rate3 .r1{background:var(--warn)}.rate3 .r2{background:var(--ok)}
-.rate3 small{display:block;font-size:10px;font-weight:400;opacity:.85;margin-top:2px}
 .progline{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:10px}
 .mask{font-size:30px;letter-spacing:8px;text-align:center;font-weight:700;color:var(--primary);margin:14px 0 6px;word-break:break-all}
 input[type=text],textarea{width:100%;border:1px solid var(--line);border-radius:12px;background:var(--surface);
@@ -89,15 +85,7 @@ textarea{min-height:76px;resize:vertical}
   font-size:18px;font-weight:600;cursor:pointer;text-align:left;padding:12px 16px}
 .opt.right{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
 .opt.wrong{background:#fdecea;border-color:var(--danger);color:var(--danger)}
-.opt .abcd{display:inline-block;width:26px;height:26px;line-height:26px;text-align:center;border-radius:8px;background:var(--surface2);color:var(--muted);font-size:13px;font-weight:700;margin-right:10px;vertical-align:middle}
-.opt.right .abcd{background:var(--ok);color:#fff}.opt.wrong .abcd{background:var(--danger);color:#fff}
-.opt.ans .abcd{font-size:12px}
-.exbox{background:var(--surface2);border-radius:14px;padding:14px;margin:12px 0;font-size:15px;line-height:1.65}
-.exbox .lbl{font-size:11px;color:var(--muted);margin-bottom:6px}
-.exbox .en{font-size:15px;line-height:1.6}
-.exbox .en b{color:var(--primary);background:var(--primary-soft);border-radius:4px;padding:0 3px}
-.exbox .speakbtn{margin-top:10px}
-.exnone{color:var(--muted);font-size:13px}
+.opt.right{background:var(--ok);color:#fff}.opt.wrong{background:var(--danger);color:#fff}
 .feedback{text-align:center;font-size:14px;font-weight:600;margin-top:12px;min-height:22px}
 .searchbox{display:flex;gap:8px;margin-bottom:10px}
 .searchbox .btn{flex:0 0 auto;white-space:nowrap}
@@ -159,7 +147,6 @@ textarea{min-height:76px;resize:vertical}
 <div id="toast"></div>
 
 <script src="words.js"></script>
-<script src="sentences.js"></script>
 <script>
 (function(){
 "use strict";
@@ -167,7 +154,7 @@ var W = window.CET6_WORDS || [];
 var META = {};
 W.forEach(function(x){ META[x[0]] = {ph:x[2]||"", tr:x[3]||""}; });
 var KEY = "cet6_recite_v1";
-var DEF = {prog:{},custom:{},star:{},cfg:{goal:20,unit:0,accent:"en-GB",rate:0.85,shuffle:true,daily:{date:"",n:0},streak:0,lastDay:""}};
+var DEF = {prog:{},custom:{},star:{},cfg:{goal:20,unit:0,accent:"en-GB",rate:0.85,shuffle:false,lastWord:"",daily:{date:"",n:0},streak:0,lastDay:""}};
 var S = load();
 var view = document.getElementById("view");
 var toastEl = document.getElementById("toast");
@@ -227,40 +214,6 @@ function rateWord(w,r){
   S.prog[w]=p; save();
 }
 function shuffleArr(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1)),t=a[i];a[i]=a[j];a[j]=t;}return a;}
-/* ---------- 选择题：从同词表随机抽干扰项 ---------- */
-function shortTr(w){
-  var raw=((META[w]||{}).tr||"").split("\n")[0].trim();
-  var t=raw.replace(/^[^\u4e00-\u9fa5]+/,"").replace(/[;；].*$/,"").trim();
-  if(!t) t=raw;
-  return t.length>28 ? t.slice(0,27)+"…" : t;
-}
-function makeChoice(w){
-  var ans=shortTr(w);
-  if(!ans) return null;
-  var pool=[], seen={}; seen[ans]=1;
-  var cand=activeWords().filter(function(x){return x!==w && shortTr(x) && shortTr(x)!==ans;});
-  shuffleArr(cand);
-  for(var i=0;i<cand.length&&pool.length<3;i++){
-    var t=shortTr(cand[i]);
-    if(seen[t])continue;
-    seen[t]=1;pool.push(t);
-  }
-  if(pool.length<3) return null;
-  var opts=pool.concat([ans]); shuffleArr(opts);
-  return {ans:ans,opts:opts};
-}
-/* ---------- 例句：目标词高亮 ---------- */
-function sentHTML(w){
-  var s=(window.CET6_SENT||{})[w];
-  if(!s) return '';
-  var forms=[w,w+"s",w+"d",w+"ed",w+"ing"];
-  if(/e$/.test(w)) forms.push(w.slice(0,-1)+"ing");
-  if(/y$/.test(w)) forms.push(w.slice(0,-1)+"ies");
-  var re=new RegExp("\\b("+forms.map(function(f){return f.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");}).join("|")+")\\b","gi");
-  var out=esc(s).replace(re,function(m){return '<b>'+m+'</b>';});
-  return '<div class="exbox"><div class="lbl">例句 · 句子记忆</div><div class="en">'+out+'</div>'
-    +'<div class="speakrow" style="margin-top:8px">'+spkBtn(s,"朗读整句")+'</div></div>';
-}
 function buildQueue(){
   var now=Date.now(), all=activeWords();
   var due=all.filter(function(w){var p=S.prog[w];return p&&p.d<=now;}).sort(function(a,b){return S.prog[a].d-S.prog[b].d;});
@@ -334,23 +287,22 @@ function renderHome(){
   h+='<button class="btn primary" data-act="startcard" style="margin-top:14px">开始背诵 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></button>';
   view.innerHTML=h;
 }
+function cardIdx(){
+  var list=activeWords();
+  var idx=list.indexOf(S.cfg.lastWord);
+  return idx<0?0:idx;
+}
 function renderCard(){
-  if(!session.cur){ return renderDone("卡片"); }
-  var w=session.cur, p=S.prog[w], m=META[w]||{ph:"",tr:""};
-  session.choice=makeChoice(w);
-  var h='<div class="progline"><span>卡片 '+(session.done+1)+' / '+session.total+'</span><span>Unit '+unitOf(w)+' · '+(p?("已学 "+(p.s||0)+" 次"):"新词")+'</span></div>';
-  h+='<div class="card" style="padding:26px 18px"><div class="wordbig" id="cardWord">'+esc(w)+'</div>'+(m.ph?'<div class="ipa">/'+esc(m.ph)+'/</div>':'')+'<div class="wordhint">选出它的中文意思</div>';
+  var list=activeWords();
+  if(!list.length){ view.innerHTML='<div class="empty">当前范围没有单词</div>'; return; }
+  var idx=cardIdx(), w=list[idx], m=META[w]||{ph:"",tr:""}, p=S.prog[w];
+  var h='<div class="progline"><span>第 '+(idx+1)+' / '+list.length+' 个</span><span>Unit '+unitOf(w)+(p?(' · 已学 '+(p.s||0)+' 次'):' · 新词')+'</span></div>';
+  h+='<div class="card" style="padding:26px 18px"><div class="wordbig">'+esc(w)+'</div>';
+  h+=(m.ph?'<div class="ipa">/'+esc(m.ph)+'/</div>':'');
   h+='<div class="speakrow">'+spkBtn(w,"播放读音")+'</div>';
-  if(session.choice){
-    h+='<div class="opts" id="cardOpts">'+session.choice.opts.map(function(o,i){
-      return '<button class="opt" data-choice="'+esc(o)+'"><span class="abcd">'+'ABCD'[i]+'</span>'+esc(o)+'</button>';
-    }).join("")+'</div>';
-  }else{
-    h+='<div id="cardAnswer"></div><div id="cardRate" style="display:none"><div class="rate3"><button class="r0" data-rate="0">不认识</button><button class="r1" data-rate="1">模糊</button><button class="r2" data-rate="2">认识</button></div></div>';
-    h+='<button class="btn soft" id="btnShow" data-act="showanswer">显示释义</button>';
-  }
-  h+='<div id="cardFb"></div></div>';
-  h+='<div class="btnrow"><button class="btn ghost" data-act="detail">详情</button><button class="btn ghost" data-act="skip">跳过</button></div>';
+  if(m.tr) h+='<div class="answer"><div class="lbl">中文释义</div><div class="val tr">'+esc(m.tr)+'</div></div>';
+  h+='</div>';
+  h+='<div class="btnrow"><button class="btn primary" data-act="cardprev"'+(idx<=0?' disabled':'')+'>← 上一个</button><button class="btn primary" data-act="cardnext"'+(idx>=list.length-1?' disabled':'')+'>下一个 →</button></div>';
   view.innerHTML=h;
 }
 function renderDone(name){
@@ -434,7 +386,6 @@ function openSettings(){
   h+='<div class="field"><label>每日新词目标</label><div class="seg">'+[10,20,30,50].map(function(n){return '<button data-goal="'+n+'" class="'+(S.cfg.goal===n?"on":"")+'">'+n+' 个</button>';}).join("")+'</div></div>';
   h+='<div class="field"><label>发音口音</label><div class="seg"><button data-accent="en-GB" class="'+(S.cfg.accent==="en-GB"?"on":"")+'">英音</button><button data-accent="en-US" class="'+(S.cfg.accent==="en-US"?"on":"")+'">美音</button></div></div>';
   h+='<div class="field"><label>语速</label><div class="seg">'+[0.7,0.85,1].map(function(n){return '<button data-rate="'+n+'" class="'+(S.cfg.rate===n?"on":"")+'">'+(n===0.7?"慢":n===1?"快":"正常")+'</button>';}).join("")+'</div></div>';
-  h+='<div class="field"><label>学习顺序</label><div class="seg"><button data-shuffle="0" class="'+(!S.cfg.shuffle?"on":"")+'">按顺序</button><button data-shuffle="1" class="'+(S.cfg.shuffle?"on":"")+'">乱序</button></div></div>';
   h+='<div class="field"><label>进度备份</label><div class="btnrow" style="margin-top:0"><button class="btn ghost" data-act="export">导出备份文件</button><button class="btn ghost" data-act="import">从文件导入</button></div></div>';
   h+='<button class="btn danger" data-act="reset">清空全部进度</button>';
   openSheet(h);
@@ -455,52 +406,22 @@ function openDetail(w){
 
 /* ---------- 事件 ---------- */
 document.addEventListener("click",function(ev){
-  var t=ev.target.closest("[data-tab],[data-unit],[data-act],[data-speak],[data-rate],[data-opt],[data-choice],[data-goal],[data-accent],[data-filter],[data-detail],[data-shuffle],[data-sort]");
+  var t=ev.target.closest("[data-tab],[data-unit],[data-act],[data-speak],[data-rate],[data-opt],[data-goal],[data-accent],[data-filter],[data-detail],[data-sort]");
   if(!t)return;
   if(t.hasAttribute("data-speak")){ ev.stopPropagation(); speak(t.getAttribute("data-speak")); return; }
-  if(t.hasAttribute("data-tab")){ tab=t.getAttribute("data-tab"); if(tab==="card"||tab==="spell"||tab==="listen"){ if(!session.cur||session.mode!==tab) startSession(tab); else render(); } else render(); return; }
+  if(t.hasAttribute("data-tab")){ tab=t.getAttribute("data-tab"); if(tab==="spell"||tab==="listen"){ if(!session.cur||session.mode!==tab) startSession(tab); else render(); } else render(); return; }
   if(t.hasAttribute("data-unit")){ S.cfg.unit=+t.getAttribute("data-unit");save();render();return; }
   var act=t.getAttribute("data-act");
-  if(act==="startcard"||act==="startspell"||act==="startlisten"){ startSession(act==="startcard"?"card":act==="startspell"?"spell":"listen");return; }
+  if(act==="startcard"){ tab="card"; render(); return; }
+  if(act==="startspell"||act==="startlisten"){ startSession(act==="startspell"?"spell":"listen");return; }
   if(act==="again"){ startSession(session.mode);return; }
   if(act==="gohome"){ tab="home";render();return; }
-  if(act==="skip"||act==="skipspell"){ session.done++;nextQuestion();return; }
-  if(t.hasAttribute("data-choice")){
-    var c=session.choice, pick=t.getAttribute("data-choice");
-    if(!c || session._picked) return;
-    session._picked=1;
-    var all=document.querySelectorAll("#cardOpts .opt");
-    for(var k=0;k<all.length;k++){ all[k].disabled=true; if(all[k].getAttribute("data-choice")===c.ans) all[k].classList.add("right"); }
-    var ok=pick===c.ans, w=session.cur, m=META[w]||{tr:""};
-    if(!ok) t.classList.add("wrong");
-    rateWord(w, ok?2:0); bumpToday(); session.done++;
-    var fb=document.getElementById("cardFb");
-    var html='<div class="feedback" style="color:var('+(ok?"ok":"danger")+')">'+(ok?"✓ 答对了":"✗ 记错了")+'</div>';
-    html+='<div class="answer"><div class="lbl">中文释义</div><div class="val tr">'+esc(m.tr||c.ans)+'</div></div>';
-    var ex=sentHTML(w);
-    html+= ex ? ex : '<div class="exbox"><div class="lbl">例句 · 句子记忆</div><div class="exnone">该词暂无内置例句，可在「详情」里写一条自己的句子</div></div>';
-    var cu=(S.custom[w]||{}).sentence;
-    if(cu) html+='<div class="answer"><div class="lbl">我的例句</div><div class="val">'+esc(cu)+'</div></div>';
-    html+='<button class="btn primary" data-act="nextcard" style="margin-top:6px">下一个 →</button>';
-    fb.innerHTML=html;
-    fb.scrollIntoView({behavior:"smooth",block:"nearest"});
-    return;
-  }
-  if(act==="nextcard"){ session._picked=0;nextQuestion();return; }
-  if(act==="showanswer"){
-    var w=session.cur, c=S.custom[w]||{}, m=META[w]||{tr:""};
-    var html = m.tr
-      ? '<div class="answer"><div class="lbl">中文释义</div><div class="val tr">'+esc(m.tr)+'</div></div>'
-      : '<div class="answer"><div class="lbl">词形提示</div><div class="val">'+w.length+' 个字母 · 首字母 '+esc(w[0].toUpperCase())+' · 末尾 '+esc(w[w.length-1])+'</div></div>';
-    if(c.sentence) html+='<div class="answer"><div class="lbl">我的例句</div><div class="val">'+esc(c.sentence)+'</div></div>';
-    document.getElementById("cardAnswer").innerHTML=html;
-    document.getElementById("cardRate").style.display="block";
-    t.style.display="none";
-    return;
-  }
-  if(t.hasAttribute("data-rate") && t.closest(".rate3")){
-    var r=+t.getAttribute("data-rate"); rateWord(session.cur,r); bumpToday(); session.done++;
-    setTimeout(nextQuestion,180); return;
+  if(act==="skipspell"){ session.done++;nextQuestion();return; }
+  if(act==="cardprev"||act==="cardnext"){
+    var list=activeWords(); if(!list.length)return;
+    var idx=cardIdx()+(act==="cardnext"?1:-1);
+    if(idx<0)idx=0; if(idx>list.length-1)idx=list.length-1;
+    S.cfg.lastWord=list[idx]; save(); renderCard(); return;
   }
   if(act==="hint"){ session._hint=(session._hint||0)+1;updateMask();return; }
   if(act==="checkspell"){
@@ -548,7 +469,6 @@ document.addEventListener("click",function(ev){
   if(act==="clearsearch"){ listQuery="";render();return; }
   if(t.hasAttribute("data-filter")){ listFilter=t.getAttribute("data-filter");render();return; }
   if(t.hasAttribute("data-sort")){ listSort=t.getAttribute("data-sort");render();return; }
-  if(t.hasAttribute("data-shuffle")){ S.cfg.shuffle=t.getAttribute("data-shuffle")==="1";save();openSettings();render();return; }
   if(t.hasAttribute("data-detail")){ openDetail(t.getAttribute("data-detail"));return; }
   if(act==="detail"){ openDetail(currentWord());return; }
   if(act==="closesheet"){ closeSheet();return; }

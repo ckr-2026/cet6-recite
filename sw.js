@@ -1,6 +1,6 @@
 // 离线缓存：词表与页面全部本地化，首次打开后断网也能用
-var CACHE = "cet6-recite-v3";
-var ASSETS = ["index.html", "words.js", "sentences.js", "manifest.json", "icon.svg"];
+var CACHE = "cet6-recite-v4";
+var ASSETS = ["index.html", "words.js", "manifest.json", "icon.svg"];
 self.addEventListener("install", function (e) {
   self.skipWaiting();
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(ASSETS); }).catch(function () {}));
